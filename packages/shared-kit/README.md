@@ -33,3 +33,7 @@ import { Dialog } from "@wpxdev/shared-kit/components/dialog";
 import { useMediaQuery } from "@wpxdev/shared-kit/hooks/use-media-query";
 import { clamp } from "@wpxdev/shared-kit/utils/clamp";
 ```
+
+Reusable autosave APIs are available from `@wpxdev/shared-kit/hooks/autosave`,
+and Lucide icons from `@wpxdev/shared-kit/icons`. See the hooks and components package
+READMEs for integration contracts.

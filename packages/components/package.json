@@ -30,6 +30,10 @@
     "./*": {
       "types": "./dist/components/ui/*.d.ts",
       "import": "./dist/components/ui/*.js"
+    },
+    "./icons": {
+      "types": "./dist/icons.d.ts",
+      "import": "./dist/icons.js"
     }
   },
   "imports": {

@@ -27,17 +27,25 @@
     "./use-media-query": {
       "types": "./dist/use-media-query.d.ts",
       "import": "./dist/use-media-query.js"
+    },
+    "./autosave": {
+      "types": "./dist/autosave.d.ts",
+      "import": "./dist/autosave.js"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/use-debounced-value.ts src/use-media-query.ts --format esm --dts --sourcemap --clean --external react",
+    "build": "tsup src/index.ts src/autosave.ts src/use-debounced-value.ts src/use-media-query.ts --format esm --dts --sourcemap --clean --external react",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.cjs"
   },
   "peerDependencies": {
     "react": ">=18"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
