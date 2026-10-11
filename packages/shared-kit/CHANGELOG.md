@@ -1,5 +1,18 @@
 # @wpxdev/shared-kit
 
+## 0.4.0
+
+### Minor Changes
+
+- 407b072: Extract transport-independent autosave queue, draft storage, notification selectors, and React hook factory. Expose Lucide icons through a focused entry point for use with the existing shadcn Button.
+
+### Patch Changes
+
+- Updated dependencies [407b072]
+- Updated dependencies [cdfb0a8]
+  - @wpxdev/hooks@0.3.0
+  - @wpxdev/components@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes

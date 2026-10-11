@@ -1,5 +1,15 @@
 # @wpxdev/components
 
+## 0.4.0
+
+### Minor Changes
+
+- 407b072: Extract transport-independent autosave queue, draft storage, notification selectors, and React hook factory. Expose Lucide icons through a focused entry point for use with the existing shadcn Button.
+
+### Patch Changes
+
+- cdfb0a8: Update dependencies to current compatible releases and include the React Is peer dependency required by Recharts.
+
 ## 0.3.1
 
 ### Patch Changes
