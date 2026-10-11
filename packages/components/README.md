@@ -40,3 +40,22 @@ pnpm exec shadcn add dialog
 ```
 
 Use `.wpxdev-dark` on a containing element to activate the dark theme.
+
+## Icons
+
+Import Lucide icons and types from `@wpxdev/components/icons` or
+`@wpxdev/shared-kit/icons`. Import only the named glyphs you use.
+
+Use the existing shadcn Button for icon actions:
+
+```tsx
+import { Button } from "@wpxdev/components/button";
+import { Check } from "@wpxdev/components/icons";
+
+<Button type="button" size="icon" aria-label="Apply preferences">
+  <Check aria-hidden="true" />
+</Button>
+```
+
+Compose the existing Spinner inside Button for loading states and set `disabled`
+and `aria-busy` on the button. For links use an anchor styled with `buttonVariants`.

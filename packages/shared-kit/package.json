@@ -59,10 +59,18 @@
       "types": "./dist/utils/cn.d.ts",
       "import": "./dist/utils/cn.js"
     },
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./hooks/autosave": {
+      "types": "./dist/hooks/autosave.d.ts",
+      "import": "./dist/hooks/autosave.js"
+    },
+    "./icons": {
+      "types": "./dist/icons.d.ts",
+      "import": "./dist/icons.js"
+    }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/components/*.ts src/hooks/index.ts src/hooks/use-debounced-value.ts src/hooks/use-media-query.ts src/utils/index.ts src/utils/clamp.ts src/utils/cn.ts --format esm --dts --sourcemap --clean --external react",
+    "build": "tsup src/index.ts src/icons.ts src/hooks/autosave.ts src/components/*.ts src/hooks/index.ts src/hooks/use-debounced-value.ts src/hooks/use-media-query.ts src/utils/index.ts src/utils/clamp.ts src/utils/cn.ts --format esm --dts --sourcemap --clean --external react",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit"
   },
