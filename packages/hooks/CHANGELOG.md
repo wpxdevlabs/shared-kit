@@ -1,5 +1,11 @@
 # @wpxdev/hooks
 
+## 0.3.0
+
+### Minor Changes
+
+- 407b072: Extract transport-independent autosave queue, draft storage, notification selectors, and React hook factory. Expose Lucide icons through a focused entry point for use with the existing shadcn Button.
+
 ## 0.2.1
 
 ### Patch Changes
