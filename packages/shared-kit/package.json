@@ -1,6 +1,6 @@
 {
   "name": "@wpxdev/shared-kit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Complete collection of reusable WPXDev frontend packages",
   "repository": {
     "type": "git",
