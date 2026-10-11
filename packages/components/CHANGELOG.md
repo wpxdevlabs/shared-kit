@@ -1,5 +1,12 @@
 # @wpxdev/components
 
+## 0.5.0
+
+### Minor Changes
+
+- 3364928: Add shadcn Base UI Toast primitives, a toast manager, and a Toaster with an explicit portal container for shadow-root applications.
+- 3364928: Extract transport-independent autosave queue, draft storage, notification selectors, and React hook factory. Expose Lucide icons through a focused entry point for use with the existing shadcn Button.
+
 ## 0.4.0
 
 ### Minor Changes

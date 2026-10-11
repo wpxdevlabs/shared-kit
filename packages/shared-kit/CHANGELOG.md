@@ -1,5 +1,23 @@
 # @wpxdev/shared-kit
 
+## 0.5.0
+
+### Minor Changes
+
+- 3364928: Add shadcn Base UI Toast primitives, a toast manager, and a Toaster with an explicit portal container for shadow-root applications.
+- 3364928: Extract transport-independent autosave queue, draft storage, notification selectors, and React hook factory. Expose Lucide icons through a focused entry point for use with the existing shadcn Button.
+
+### Patch Changes
+
+- 3364928: Add optional batch reads and writes to the autosave queue, preserving per-resource drafts, immutable retries, conflicts, and the two-request concurrency limit.
+  
+  Index draft cleanup by scope and resource, preserving version-1 drafts during migration. Avoid repeated full-queue scans for save confirmations.
+- Updated dependencies [3364928]
+- Updated dependencies [3364928]
+- Updated dependencies [3364928]
+  - @wpxdev/hooks@0.4.0
+  - @wpxdev/components@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

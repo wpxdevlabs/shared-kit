@@ -1,5 +1,14 @@
 # @wpxdev/hooks
 
+## 0.4.0
+
+### Minor Changes
+
+- 3364928: Add optional batch reads and writes to the autosave queue, preserving per-resource drafts, immutable retries, conflicts, and the two-request concurrency limit.
+  
+  Index draft cleanup by scope and resource, preserving version-1 drafts during migration. Avoid repeated full-queue scans for save confirmations.
+- 3364928: Extract transport-independent autosave queue, draft storage, notification selectors, and React hook factory. Expose Lucide icons through a focused entry point for use with the existing shadcn Button.
+
 ## 0.3.0
 
 ### Minor Changes
