@@ -7,7 +7,7 @@
     "build": "pnpm --recursive --if-present build",
     "clean": "pnpm --recursive --if-present clean",
     "typecheck": "pnpm --recursive --if-present typecheck",
-    "test": "pnpm --recursive --if-present test",
+    "test": "node --test scripts/braces-security.test.cjs && pnpm --recursive --if-present test",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm build && changeset publish",
@@ -15,18 +15,22 @@
   },
   "pnpm": {
     "overrides": {
-      "esbuild": "0.28.2"
+      "esbuild": "0.28.2",
+      "@tailwindcss/cli>@parcel/watcher": "2.6.0"
+    },
+    "patchedDependencies": {
+      "braces@3.0.3": "patches/braces@3.0.3.patch"
     }
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.7",
-    "@types/node": "^24.7.2",
-    "@types/react": "^19.2.2",
+    "@changesets/cli": "^3.0.3",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
     "esbuild-sass-plugin": "^3.7.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "sass-embedded": "^1.103.1",
-    "tsup": "^8.5.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sass-embedded": "^1.105.1",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   }
