@@ -59,3 +59,5 @@ export * from "./textarea";
 export * from "./toggle-group";
 export * from "./toggle";
 export * from "./tooltip";
+
+export { Toast, ToastAction, ToastClose, ToastContent, ToastDescription, ToastPortal, ToastProvider, ToastTitle, ToastViewport, createToastManager, toast, useToastManager, Toaster as ToastToaster } from "./toast";

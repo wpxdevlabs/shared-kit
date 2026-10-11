@@ -1,10 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 let SaveQueue;
-test.before(async () => { ({ SaveQueue } = await import('../dist/autosave.js')); });
+test.before(async () => {
+	({ SaveQueue } = await import('../dist/autosave.js'));
+});
 const tick = async () => {
-	for (let i = 0; i < 8; i++)
-		await new Promise((resolve) => setImmediate(resolve));
+	for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
 };
 const baseline = (key) => ({ key, data: { value: 0 }, version: 'v0' });
 function harness(options = {}) {
@@ -26,6 +27,8 @@ function harness(options = {}) {
 	const q = new SaveQueue({
 		storage,
 		validate: options.validate,
+		readMany: options.readMany,
+		writeBatch: options.writeBatch,
 		read: async (key) => baseline(key),
 		write: async (key, op) => {
 			calls.push({ key, ...structuredClone(op) });
@@ -145,9 +148,7 @@ test('queue limits concurrency to two and serializes each resource', async () =>
 	const resolvers = [];
 	const h = harness({
 		write: (key, op) =>
-			new Promise((r) =>
-				resolvers.push(() => r({ key, data: op.data, version: 'v1' }))
-			),
+			new Promise((r) => resolvers.push(() => r({ key, data: op.data, version: 'v1' }))),
 	});
 	try {
 		await h.start();
@@ -361,9 +362,14 @@ test('reverting an unsent edit removes the previous persisted draft', async () =
 });
 
 test('a conflict already matching the latest draft confirms saved values', async () => {
-	const h = harness({ write: async (key, op) => {
-		throw { status: 409, current: { key, data: op.data, version: 'v-other-tab' } };
-	} });
+	const h = harness({
+		write: async (key, op) => {
+			throw {
+				status: 409,
+				current: { key, data: op.data, version: 'v-other-tab' },
+			};
+		},
+	});
 	try {
 		await h.start();
 		h.q.edit('global', { value: 1 });
@@ -372,32 +378,198 @@ test('a conflict already matching the latest draft confirms saved values', async
 		assert.equal(h.q.get('global').status, 'saved');
 		assert.equal(h.q.get('global').baseline.version, 'v-other-tab');
 		assert.equal(h.rows.size, 0);
-	} finally { h.q.dispose(); }
+	} finally {
+		h.q.dispose();
+	}
 });
 
 test('nullable crawler choices round-trip as inherited permissions', async () => {
- const h = harness();
- try {
-  await h.start('crawler:fixture');
-  const data = {allow_training: null, allow_answer: 1, allow_index: null};
-  h.q.edit('crawler:fixture', data);
-  h.setTime(800); await h.pump();
-  assert.deepEqual(h.calls[0].data, data);
-  assert.equal(h.q.get('crawler:fixture').status, 'saved');
- } finally {h.q.dispose();}
+	const h = harness();
+	try {
+		await h.start('crawler:fixture');
+		const data = { allow_training: null, allow_answer: 1, allow_index: null };
+		h.q.edit('crawler:fixture', data);
+		h.setTime(800);
+		await h.pump();
+		assert.deepEqual(h.calls[0].data, data);
+		assert.equal(h.q.get('crawler:fixture').status, 'saved');
+	} finally {
+		h.q.dispose();
+	}
 });
 
 test('application validation blocks writes until a corrected edit', async () => {
- const h = harness({validate: (key, data) => key === 'custom' && data.value < 0 ? 'Value must be positive.' : undefined});
- try {
-  await h.start('custom');
-  h.q.edit('custom', {value: -1}, true);
-  await h.pump();
-  assert.equal(h.calls.length, 0);
-  assert.equal(h.q.getSnapshot().entries[0].status, 'validation');
-  h.q.edit('custom', {value: 1}, true);
-  await h.pump();
-  assert.equal(h.calls.length, 1);
-  assert.equal(h.q.getSnapshot().entries[0].status, 'saved');
- } finally { h.q.dispose(); }
+	const h = harness({
+		validate: (key, data) =>
+			key === 'custom' && data.value < 0 ? 'Value must be positive.' : undefined,
+	});
+	try {
+		await h.start('custom');
+		h.q.edit('custom', { value: -1 }, true);
+		await h.pump();
+		assert.equal(h.calls.length, 0);
+		assert.equal(h.q.getSnapshot().entries[0].status, 'validation');
+		h.q.edit('custom', { value: 1 }, true);
+		await h.pump();
+		assert.equal(h.calls.length, 1);
+		assert.equal(h.q.getSnapshot().entries[0].status, 'saved');
+	} finally {
+		h.q.dispose();
+	}
+});
+
+test('bulk preparation and twenty saves use one read and one write batch', async () => {
+	const reads = [],
+		batches = [];
+	const h = harness({
+		readMany: async (keys) => {
+			reads.push(keys);
+			return keys.map(baseline);
+		},
+		writeBatch: async (operations) => {
+			batches.push(structuredClone(operations));
+			assert.equal(h.rows.size, 20, 'all operations persisted before sending');
+			return operations.map(({ key, operation }) => ({
+				key,
+				snapshot: { key, data: operation.data, version: 'v1' },
+			}));
+		},
+	});
+	try {
+		await h.q.initialize();
+		const keys = Array.from({ length: 20 }, (_, i) => `crawler:${i}`);
+		await h.q.ensureMany(keys);
+		keys.forEach((key) => h.q.edit(key, { value: 1 }, true));
+		await h.pump();
+		assert.equal(reads.length, 1);
+		assert.equal(batches.length, 1);
+		assert.equal(batches[0].length, 20);
+		assert.equal(h.calls.length, 0);
+		assert.ok(keys.every((key) => h.q.get(key).status === 'saved'));
+		assert.equal(h.rows.size, 0);
+	} finally {
+		h.q.dispose();
+	}
+});
+test('batch conflicts stay independent and newer edits remain pending', async () => {
+	let finish;
+	const h = harness({
+		writeBatch: (operations) =>
+			new Promise((resolve) => {
+				finish = () =>
+					resolve(
+						operations.map(({ key, operation }) =>
+							key === 'global'
+								? {
+										key,
+										snapshot: { key, data: operation.data, version: 'v1' },
+									}
+								: {
+										key,
+										error: Object.assign(new Error('Changed elsewhere'), {
+											status: 409,
+											current: baseline(key),
+										}),
+									},
+						),
+					);
+			}),
+	});
+	try {
+		await h.start();
+		await h.q.ensure('settings');
+		h.q.edit('global', { value: 1 }, true);
+		h.q.edit('settings', { value: 1 }, true);
+		await h.pump();
+		h.q.edit('global', { value: 2 });
+		finish();
+		await tick();
+		assert.equal(h.q.get('global').data.value, 2);
+		assert.equal(h.q.get('global').baseline.data.value, 1);
+		assert.equal(h.q.get('global').pending, true);
+		assert.equal(h.q.get('settings').status, 'conflict');
+	} finally {
+		h.q.dispose();
+	}
+});
+test('lost batch responses retry immutable operations, including missing results', async () => {
+	const batches = [];
+	const h = harness({
+		writeBatch: async (ops) => {
+			batches.push(structuredClone(ops));
+			return batches.length === 1
+				? []
+				: ops.map(({ key, operation }) => ({
+						key,
+						snapshot: { key, data: operation.data, version: 'v1' },
+					}));
+		},
+	});
+	try {
+		await h.start();
+		h.q.edit('global', { value: 1 }, true);
+		await h.pump();
+		assert.equal(h.q.get('global').status, 'offline');
+		h.q.edit('global', { value: 2 });
+		h.setTime(2000);
+		await h.pump();
+		assert.deepEqual(batches[1], batches[0]);
+		assert.equal(h.q.get('global').baseline.data.value, 1);
+		assert.equal(h.q.get('global').data.value, 2);
+	} finally {
+		h.q.dispose();
+	}
+});
+test('batches are capped at 100 and two simultaneous requests', async () => {
+	const batches = [],
+		finishes = [];
+	const h = harness({
+		readMany: async (keys) => keys.map(baseline),
+		writeBatch: (ops) =>
+			new Promise((resolve) => {
+				batches.push(ops);
+				finishes.push(() =>
+					resolve(
+						ops.map(({ key, operation }) => ({
+							key,
+							snapshot: { key, data: operation.data, version: 'v1' },
+						})),
+					),
+				);
+			}),
+	});
+	try {
+		await h.q.initialize();
+		const keys = Array.from({ length: 205 }, (_, i) => `crawler:${i}`);
+		await h.q.ensureMany(keys);
+		keys.forEach((key) => h.q.edit(key, { value: 1 }, true));
+		await h.pump();
+		assert.deepEqual(
+			batches.map((batch) => batch.length),
+			[100, 100],
+		);
+		finishes.shift()();
+		await tick();
+		await h.pump();
+		assert.deepEqual(
+			batches.map((batch) => batch.length),
+			[100, 100, 5],
+		);
+		finishes.forEach((finish) => finish());
+		await tick();
+		assert.ok(keys.every((key) => h.q.get(key).status === 'saved'));
+	} finally {
+		h.q.dispose();
+	}
+});
+test('incomplete bulk reads do not create partially loaded records', async () => {
+	const h = harness({ readMany: async () => [baseline('global')] });
+	try {
+		await h.q.initialize();
+		await assert.rejects(h.q.ensureMany(['global', 'settings']), /Incomplete batch read/);
+		assert.equal(h.q.get('global'), undefined);
+		assert.equal(h.q.get('settings'), undefined);
+	} finally {
+		h.q.dispose();
+	}
 });
