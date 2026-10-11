@@ -49,10 +49,19 @@ export interface DraftStorage {
 	ack(key: string, draftId: string): Promise<void>;
 	clear(key: string): Promise<void>;
 }
+export interface BatchOperation {
+	key: string;
+	operation: Operation;
+}
+export type BatchSaveResult =
+	| { key: string; snapshot: SaveSnapshot; error?: never }
+	| { key: string; error: SaveFailure; snapshot?: never };
 export interface QueueDependencies {
 	storage: DraftStorage;
 	read(key: string): Promise<SaveSnapshot>;
 	write(key: string, operation: Operation): Promise<SaveSnapshot>;
+	readMany?(keys: string[]): Promise<SaveSnapshot[]>;
+	writeBatch?(operations: BatchOperation[]): Promise<BatchSaveResult[]>;
 	now?: () => number;
 	id?: () => string;
 	random?: () => number;
@@ -78,6 +87,7 @@ export class SaveQueue {
 	private records = new Map<string, SaveEntry>();
 	private listeners = new Set<() => void>();
 	private active = new Set<string>();
+	private activeBatches = 0;
 	private reads = new Map<string, Promise<void>>();
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private writes: Promise<void> = Promise.resolve();
@@ -127,13 +137,11 @@ export class SaveQueue {
 					existing.draftId !== stored.draftId &&
 					!equal(existing.data, stored.data)
 				) {
-					const latest =
-						stored.editedAt > existing.editedAt ? stored : existing;
+					const latest = stored.editedAt > existing.editedAt ? stored : existing;
 					this.records.set(stored.key, {
 						...latest,
 						status: latest.localOnly ? 'draft' : 'conflict',
-						error:
-							'Multiple local drafts exist. Review the displayed draft before resuming.',
+						error: 'Multiple local drafts exist. Review the displayed draft before resuming.',
 					});
 					continue;
 				}
@@ -143,9 +151,7 @@ export class SaveQueue {
 					localPersisted: true,
 					status: stored.localOnly
 						? 'draft'
-						: ['auth', 'conflict', 'validation', 'failed'].includes(
-									stored.status
-							  )
+						: ['auth', 'conflict', 'validation', 'failed'].includes(stored.status)
 							? stored.status
 							: 'pending',
 					due: this.now() + 800,
@@ -159,13 +165,42 @@ export class SaveQueue {
 		this.emit();
 		this.schedule();
 	}
+	async ensureMany(keys: string[]) {
+		if (!this.ready) throw new Error('Save queue is still restoring drafts.');
+		const unique = [...new Set(keys)];
+		if (!this.deps.readMany) {
+			await Promise.all(unique.map((key) => this.ensure(key)));
+			return;
+		}
+		const missing = unique.filter((key) => !this.records.has(key) && !this.reads.has(key));
+		const jobs: Promise<void>[] = [];
+		for (let offset = 0; offset < missing.length; offset += 100) {
+			const chunk = missing.slice(offset, offset + 100);
+			const snapshots = this.deps.readMany(chunk).then((rows) => {
+				if (
+					rows.length !== chunk.length ||
+					chunk.some((key) => rows.filter((row) => row.key === key).length !== 1)
+				)
+					throw new Error('Incomplete batch read. Try again.');
+				return new Map(rows.map((row) => [row.key, row]));
+			});
+			for (const key of chunk)
+				jobs.push(this.ensureWith(key, async () => (await snapshots).get(key)!));
+		}
+		await Promise.all([
+			...jobs,
+			...unique.filter((key) => !missing.includes(key)).map((key) => this.ensure(key)),
+		]);
+	}
 	async ensure(key: string) {
+		return this.ensureWith(key, (resource) => this.deps.read(resource));
+	}
+	private async ensureWith(key: string, readSnapshot: (key: string) => Promise<SaveSnapshot>) {
 		if (!this.ready) throw new Error('Save queue is still restoring drafts.');
 		if (this.records.has(key)) return;
 		const existing = this.reads.get(key);
 		if (existing) return existing;
-		const read = this.deps
-			.read(key)
+		const read = readSnapshot(key)
 			.then((baseline) => {
 				if (!this.records.has(key))
 					this.records.set(key, {
@@ -192,8 +227,7 @@ export class SaveQueue {
 		if (!entry) throw new Error('Preferences have not loaded yet.');
 		if (equal(entry.data, data)) return;
 		const error = this.deps.validate?.(key, data);
-		const pending =
-			!!entry.operation || !entry.baseline || !equal(entry.baseline.data, data);
+		const pending = !!entry.operation || !entry.baseline || !equal(entry.baseline.data, data);
 		const status =
 			entry.status === 'conflict' || entry.status === 'auth'
 				? entry.status
@@ -249,9 +283,7 @@ export class SaveQueue {
 	async clearDraft(key: string, draftId?: string) {
 		if (draftId && this.records.get(key)?.draftId !== draftId) return;
 		await this.store(() =>
-			draftId
-				? this.deps.storage.ack(key, draftId)
-				: this.deps.storage.clear(key)
+			draftId ? this.deps.storage.ack(key, draftId) : this.deps.storage.clear(key),
 		);
 		if (draftId && this.records.get(key)?.draftId !== draftId) return;
 		this.records.delete(key);
@@ -278,15 +310,18 @@ export class SaveQueue {
 				await this.deps.storage.ack(copy.key, copy.draftId);
 		});
 	}
+	private atCapacity() {
+		return this.deps.writeBatch ? this.activeBatches >= 2 : this.active.size >= 2;
+	}
 	private schedule() {
 		if (this.timer) clearTimeout(this.timer);
-		if (!this.ready || this.stopped || this.active.size >= 2) return;
+		if (!this.ready || this.stopped || this.atCapacity()) return;
 		const candidates = [...this.records.values()].filter(
 			(entry) =>
 				entry.pending &&
 				!entry.localOnly &&
 				!this.active.has(entry.key) &&
-				['pending', 'offline'].includes(entry.status)
+				['pending', 'offline'].includes(entry.status),
 		);
 		if (!candidates.length) return;
 		this.timer = setTimeout(
@@ -294,10 +329,7 @@ export class SaveQueue {
 				this.timer = undefined;
 				void this.pump();
 			},
-			Math.max(
-				0,
-				Math.min(...candidates.map((entry) => entry.due)) - this.now()
-			)
+			Math.max(0, Math.min(...candidates.map((entry) => entry.due)) - this.now()),
 		);
 	}
 	async pump() {
@@ -308,16 +340,68 @@ export class SaveQueue {
 				!entry.localOnly &&
 				!this.active.has(entry.key) &&
 				['pending', 'offline'].includes(entry.status) &&
-				entry.due <= this.now()
+				!!entry.baseline &&
+				entry.due <= this.now(),
 		);
-		for (const entry of candidates) {
-			if (this.active.size >= 2) break;
-			this.active.add(entry.key);
-			void this.send(entry.key);
+		if (this.deps.writeBatch) {
+			for (let offset = 0; offset < candidates.length && !this.atCapacity(); offset += 100) {
+				const keys = candidates.slice(offset, offset + 100).map((entry) => entry.key);
+				keys.forEach((key) => this.active.add(key));
+				this.activeBatches++;
+				void this.sendBatch(keys).finally(() => {
+					this.activeBatches--;
+					this.schedule();
+				});
+			}
+		} else {
+			for (const entry of candidates) {
+				if (this.atCapacity()) break;
+				this.active.add(entry.key);
+				void this.send(entry.key);
+			}
 		}
 		this.schedule();
 	}
-	private async send(key: string) {
+	private async sendBatch(keys: string[]) {
+		const prepared: BatchOperation[] = [];
+		const waiting = new Map<
+			string,
+			{
+				resolve: (snapshot: SaveSnapshot) => void;
+				reject: (error: unknown) => void;
+			}
+		>();
+		const write = (key: string, operation: Operation) =>
+			new Promise<SaveSnapshot>((resolve, reject) => {
+				prepared.push({ key, operation });
+				waiting.set(key, { resolve, reject });
+				if (prepared.length !== keys.length) return;
+				void (async () => {
+					try {
+						const results = await this.deps.writeBatch!(prepared);
+						for (const [resource, handlers] of waiting) {
+							const matches = results.filter((result) => result.key === resource);
+							const result = matches[0];
+							if (
+								matches.length !== 1 ||
+								(!result?.snapshot && !result?.error) ||
+								(result?.snapshot && result.snapshot.key !== resource)
+							)
+								handlers.reject(new Error('Batch save could not be confirmed.'));
+							else if (result.error) handlers.reject(result.error);
+							else handlers.resolve(result.snapshot!);
+						}
+					} catch (error) {
+						waiting.forEach((handlers) => handlers.reject(error));
+					}
+				})();
+			});
+		await Promise.all(keys.map((key) => this.send(key, write)));
+	}
+	private async send(
+		key: string,
+		write: QueueDependencies['write'] = (resource, operation) => this.deps.write(resource, operation),
+	) {
 		let entry = this.records.get(key)!;
 		if (!entry.baseline) {
 			this.active.delete(key);
@@ -334,7 +418,7 @@ export class SaveQueue {
 		this.emit();
 		await this.persist(entry); // Record ambiguous writes before any network request.
 		try {
-			const saved = await this.deps.write(key, operation);
+			const saved = await write(key, operation);
 			this.connection = 'available';
 			const latest = this.records.get(key)!;
 			const pending = !equal(latest.data, saved.data);
@@ -359,11 +443,7 @@ export class SaveQueue {
 			const failure = error as SaveFailure;
 			const latest = this.records.get(key)!;
 			const status = failure.status ?? 0;
-			if (
-				status === 409 &&
-				failure.current &&
-				equal(latest.data, failure.current.data)
-			) {
+			if (status === 409 && failure.current && equal(latest.data, failure.current.data)) {
 				const confirmed: SaveEntry = {
 					...latest,
 					baseline: failure.current,
@@ -412,8 +492,7 @@ export class SaveQueue {
 					this.now() +
 					Math.max(
 						failure.retryAfter ?? 0,
-						Math.min(30000, 1000 * 2 ** (attempts - 1)) *
-							(0.75 + this.random() / 2)
+						Math.min(30000, 1000 * 2 ** (attempts - 1)) * (0.75 + this.random() / 2),
 					),
 			};
 			this.records.set(key, next);
@@ -457,15 +536,11 @@ export class SaveQueue {
 		if (!entry || this.active.has(key)) return;
 		const current = await this.deps.read(key);
 		if (this.records.get(key)?.draftId !== entry.draftId)
-			throw new Error(
-				'The draft changed while reviewing. Review it again before choosing.'
-			);
+			throw new Error('The draft changed while reviewing. Review it again before choosing.');
 		await this.store(() => this.deps.storage.clear(key));
 		if (this.records.get(key)?.draftId !== entry.draftId) {
 			await this.persist(this.records.get(key)!);
-			throw new Error(
-				'The draft changed while reviewing. Your new edits are retained.'
-			);
+			throw new Error('The draft changed while reviewing. Your new edits are retained.');
 		}
 		const error = keepDraft ? this.deps.validate?.(key, entry.data) : undefined;
 		const next: SaveEntry = {
