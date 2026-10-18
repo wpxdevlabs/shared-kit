@@ -1,5 +1,13 @@
 # @wpxdev/components
 
+## 0.5.1
+
+### Patch Changes
+
+- e2406f7: chore(deps): bump zod from 4.6.5 to 4.6.7
+- 2aa014c: chore(deps): bump lucide-react from 1.55.0 to 1.57.0
+- a3ee6b1: chore(deps-dev): bump shadcn from 4.21.4 to 4.21.5
+
 ## 0.5.0
 
 ### Minor Changes
