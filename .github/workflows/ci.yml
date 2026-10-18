@@ -66,5 +66,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Wait for Dependabot changeset
+        if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          for attempt in {1..30}; do
+            git fetch origin "$PR_BRANCH"
+            if git cat-file -e "FETCH_HEAD:.changeset/dependabot-${PR_NUMBER}.md" 2>/dev/null; then
+              git checkout --detach FETCH_HEAD
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Dependabot changeset was not generated in time"
+          exit 1
+
       - name: Check changeset status
         run: pnpm changeset:status
