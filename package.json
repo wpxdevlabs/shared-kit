@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "esbuild-sass-plugin": "^3.7.0",
     "react": "^19.3.0",
