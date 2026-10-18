@@ -1,0 +1,29 @@
+name: Dependabot changeset
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: dependabot-changeset-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  changeset:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      # Only execute trusted base-branch code with the write token.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const generate = require('./.github/scripts/dependabot-changeset.cjs');
+            await generate({ github, context });
