@@ -159,6 +159,10 @@ pnpm changeset
 
 Use `pnpm changeset --empty` only for package-file changes that intentionally require no version bump. After changes reach `main`:
 
+Pushing a working branch automatically opens a draft pull request targeting `main` if none exists. The automation excludes `main`, `changeset-release/**`, and `dependabot/**` and leaves existing PRs unchanged. GitHub Actions must be allowed to create pull requests in the repository settings.
+
+Open work-in-progress pull requests as drafts. CI, CodeQL, and secret scanning skip draft PRs and run when they are marked ready for review; later pushes to ready PRs rerun checks. Automated Changesets version PRs open as drafts.
+
 Regular pull requests run typechecks and tests, with a small hooks build required by the tests. The `changeset-release/main` version pull request also runs the full package build. CI does not repeat these checks after merging; the release workflow builds the publishable packages.
 
 1. Changesets creates or updates the `chore: version packages` pull request.

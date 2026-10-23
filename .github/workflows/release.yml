@@ -47,7 +47,7 @@ jobs:
           version: pnpm version-packages
           title: "chore: version packages"
           commit: "chore: version packages"
-          branch: changeset-release/main
+          prDraft: create
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

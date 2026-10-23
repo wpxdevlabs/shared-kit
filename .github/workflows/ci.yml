@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
     branches:
       - main
 
@@ -14,6 +15,7 @@ concurrency:
 
 jobs:
   validate:
+    if: github.event.pull_request.draft == false
     name: Build, typecheck, and test
     runs-on: ubuntu-latest
     steps:
@@ -48,7 +50,7 @@ jobs:
 
   changeset:
     name: Require changeset for package changes
-    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    if: github.event.pull_request.draft == false && github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository history
