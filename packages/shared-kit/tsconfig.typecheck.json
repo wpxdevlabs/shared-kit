@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@wpxdev/components": [
+        "../components/src/index.ts"
+      ],
+      "@wpxdev/components/icons": [
+        "../components/src/icons.ts"
+      ],
+      "@wpxdev/components/*": [
+        "../components/src/components/ui/*"
+      ],
+      "@wpxdev/hooks": [
+        "../hooks/src/index.ts"
+      ],
+      "@wpxdev/hooks/*": [
+        "../hooks/src/*"
+      ],
+      "@wpxdev/utils": [
+        "../utils/src/index.ts"
+      ],
+      "@wpxdev/utils/*": [
+        "../utils/src/*"
+      ]
+    },
+    "jsx": "react-jsx"
+  }
+}

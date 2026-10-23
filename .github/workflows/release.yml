@@ -47,6 +47,7 @@ jobs:
           version: pnpm version-packages
           title: "chore: version packages"
           commit: "chore: version packages"
+          branch: changeset-release/main
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,19 +56,28 @@ jobs:
         if: steps.changesets.outputs.published == 'true'
         run: git push origin --tags
 
-      - name: Generate consolidated release notes
-        id: release-notes
-        if: steps.changesets.outputs.published == 'true'
-        env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
-          RELEASE_NOTES_PATH: ${{ runner.temp }}/wpxdev-release-notes.md
-        run: node .github/scripts/create-consolidated-release.mjs
-
-      - name: Create consolidated GitHub release
+      - name: Create package GitHub releases
         if: steps.changesets.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ steps.release-notes.outputs.tag }}
-          RELEASE_TITLE: ${{ steps.release-notes.outputs.title }}
-          RELEASE_NOTES_PATH: ${{ runner.temp }}/wpxdev-release-notes.md
-        run: gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file "$RELEASE_NOTES_PATH"
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+        run: node .github/scripts/create-package-releases.mjs
+
+      - name: Delete merged Changesets release branch
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BRANCH: changeset-release/main
+        run: |
+          if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH"; then
+            echo "Release branch is already absent."
+            exit 0
+          fi
+
+          merged_prs=$(gh pr list --head "$RELEASE_BRANCH" --base main --state merged --json number --jq 'length')
+          open_prs=$(gh pr list --head "$RELEASE_BRANCH" --base main --state open --json number --jq 'length')
+          if [ "$merged_prs" -gt 0 ] && [ "$open_prs" -eq 0 ]; then
+            git push origin --delete "$RELEASE_BRANCH"
+          else
+            echo "Keeping release branch: no merged PR found or a release PR is still open."
+          fi

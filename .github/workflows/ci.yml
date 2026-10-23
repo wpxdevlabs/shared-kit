@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - main
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -36,7 +33,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
+        if: github.head_ref == 'changeset-release/main'
         run: pnpm build
+
+      - name: Build hooks for tests
+        if: github.head_ref != 'changeset-release/main'
+        run: pnpm --filter @wpxdev/hooks exec tsup src/autosave.ts --format esm --external react
 
       - name: Typecheck packages
         run: pnpm typecheck
