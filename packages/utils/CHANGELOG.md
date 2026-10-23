@@ -1,5 +1,11 @@
 # @wpxdev/utils
 
+## 0.2.2
+
+### Patch Changes
+
+- e22bdf6: Publish a maintenance release of all packages with individual GitHub releases, version tags, npm package links, and installation commands.
+
 ## 0.2.1
 
 ### Patch Changes

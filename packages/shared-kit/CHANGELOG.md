@@ -1,5 +1,16 @@
 # @wpxdev/shared-kit
 
+## 0.5.1
+
+### Patch Changes
+
+- e22bdf6: Publish a maintenance release of all packages with individual GitHub releases, version tags, npm package links, and installation commands.
+- Updated dependencies [e22bdf6]
+  - @wpxdev/components@0.5.2
+  - @wpxdev/hooks@0.4.1
+  - @wpxdev/styles@0.2.2
+  - @wpxdev/utils@0.2.2
+
 ## 0.5.0
 
 ### Minor Changes
