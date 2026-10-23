@@ -159,6 +159,8 @@ pnpm changeset
 
 Use `pnpm changeset --empty` only for package-file changes that intentionally require no version bump. After changes reach `main`:
 
+Regular pull requests run typechecks and tests, with a small hooks build required by the tests. The `changeset-release/main` version pull request also runs the full package build. CI does not repeat these checks after merging; the release workflow builds the publishable packages.
+
 1. Changesets creates or updates the `chore: version packages` pull request.
 2. Merging that pull request publishes each changed package to npm.
 3. npm Trusted Publishing signs provenance through GitHub Actions OIDC.
