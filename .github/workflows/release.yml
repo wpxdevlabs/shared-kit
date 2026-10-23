@@ -41,26 +41,23 @@ jobs:
 
       - name: Create release pull request or publish to npm
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          publish: pnpm release
-          version: pnpm version-packages
-          title: "chore: version packages"
-          commit: "chore: version packages"
-          prDraft: create
-          createGithubReleases: false
+          publish-script: pnpm release
+          version-script: pnpm version-packages
+          pr-title: "chore: version packages"
+          commit-message: "chore: version packages"
+          pr-draft: create
+          create-github-releases: false
+          push-git-tags: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push package version tags
-        if: steps.changesets.outputs.published == 'true'
-        run: git push origin --tags
 
       - name: Create package GitHub releases
         if: steps.changesets.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.published-packages }}
         run: node .github/scripts/create-package-releases.mjs
 
       - name: Delete merged Changesets release branch
