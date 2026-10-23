@@ -1,6 +1,6 @@
 {
   "name": "@wpxdev/components",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Accessible, reusable React UI primitives",
   "repository": {
     "type": "git",
