@@ -1,0 +1,44 @@
+name: Open draft pull request
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - 'changeset-release/**'
+      - 'dependabot/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: auto-draft-pr-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  open-pr:
+    if: github.event.deleted == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open draft PR if none exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_BRANCH: ${{ github.ref_name }}
+        run: |
+          existing_pr=$(gh pr list --base main --head "$PR_BRANCH" --state open --json number --jq 'length')
+          if [ "$existing_pr" -gt 0 ]; then
+            echo "A pull request already exists for this branch."
+            exit 0
+          fi
+
+          encoded_branch=$(jq -rn --arg branch "$PR_BRANCH" '$branch | @uri')
+          ahead_by=$(gh api "repos/$GH_REPO/compare/main...$encoded_branch" --jq '.ahead_by')
+          if [ "$ahead_by" -eq 0 ]; then
+            echo "Branch has no new commits compared with main."
+            exit 0
+          fi
+
+          gh pr create --base main --head "$PR_BRANCH" --draft \
+            --title "$PR_BRANCH" \
+            --body "Automatically opened as a draft after a branch push. Update the title and description, then mark ready for review to run checks."
