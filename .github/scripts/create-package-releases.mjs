@@ -55,7 +55,7 @@ for (const { name, version } of publishedPackages) {
     "--target", commit,
     "--title", tag,
     "--notes-file", "-",
-    "--latest=false",
+    name === "@wpxdev/shared-kit" ? "--latest" : "--latest=false",
   ], { input: notes, stdio: ["pipe", "inherit", "inherit"] });
   console.log(`Created GitHub release ${tag}.`);
 }
